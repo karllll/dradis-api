@@ -21,7 +21,7 @@
 
 
 import requests
-
+import mimetypes
 
 class DradisException(Exception):
     pass
@@ -41,7 +41,7 @@ class Dradis():
     _DOCPROPS = "/pro/api/document_properties"
     _ISSUE_LIB = "/pro/api/addons/issuelib/entries"
 
-    def __init__(self, api_token, url, debug=False, verify=True):
+    def __init__(self, api_token, url, debug=False, verify=False):
         self.__api_token = api_token  # API Token
         self.__url = url              # Dradis URL (eg. https://your_dradis_server.com)
         self.__debug = debug          # Debuging True?
@@ -50,6 +50,11 @@ class Dradis():
             'Authorization': 'Token token={}'.format(self.__api_token),
             'Content-type': 'application/json',
             'Accept': 'application/vnd.dradisproapi; v=1'
+        }
+        self.__headers_multipart = {
+            'Authorization': 'Token token={}'.format(self.__api_token),
+            'Accept': '*/*'
+    #        'Content-type': 'multipart/form-data' #commented to not clobber boundary
         }  # Default headers
 
     #####################################################
@@ -127,6 +132,25 @@ class Dradis():
 
         # GET RESULT
         result = self._action(url=url, header=header, req_type=req_type, json=data)
+
+        return result
+
+
+    def _create_multipart(self, endpoint, project_id, data) -> list:
+        """Generic function to create for an endpoint using multipart POST (attachments)"""
+
+        # BUILD API ENDPOINT
+        url = self.__url + endpoint
+
+        # HTTP REQUEST TYPE
+        req_type = "POST"
+
+        # SET HEADERS
+        header = self.__headers_multipart
+        header["Dradis-Project-Id"] = str(project_id)
+
+        # REQUEST 
+        result = self._action(url=url, header=header, req_type=req_type, files=data)
 
         return result
 
@@ -877,7 +901,7 @@ class Dradis():
         :param note_id: The id of the noTe to update
         :param text: Content of the note
         :param category_id: The id of the category (i.e. 1 for 'AdvancedWordExport Ready')
-        """
+        gg"""
 
         # Add required header to set
         self._add_project_header(project_id)
@@ -965,30 +989,21 @@ class Dradis():
 
         return result
 
-    def create_attachment(self, project_id: int, node_id: int):
+    def create_attachment(self, project_id: int, node_id: int, filepath: str):
         """Create a new attachment
 
         :param project_id: ID for the project
         :param node_id: ID for the node to create attachment for
         """
 
-        raise NotImplementedError()
-
-        # Add required header to set
         self._add_project_header(project_id)
-
-        # endpoint = self._ATTACHMENT.replace("<node_id>", str(node_id))
+        endpoint = self._ATTACHMENT.replace("<node_id>", str(node_id))
 
         # Set the data
-        # data = {}
-
-        # Grab the result
-        result = []
-
-        # Cleanup headers
+        files = {'files[]':(filepath, open(filepath, 'rb').read(), mimetypes.guess_type(filepath))}
+        result = self._create_multipart(endpoint,project_id,files)
         self._cleanup_project_header()
-
-        return result
+        return result 
 
     def rename_attachment(self, project_id: int, node_id: int, filename: str, new_filename: str):
         """Renames a specific Attachment on a Node in your project
